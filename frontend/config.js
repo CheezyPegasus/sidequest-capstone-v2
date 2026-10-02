@@ -1,1 +1,1 @@
-window.SIDEQUEST_BACKEND_URL = "https://sidequest-capstone-v2.onrender.com";
+window["SIDEQUEST_BACKEND_URL"] = 'https://sidequest-capstone-v2.onrender.com';
