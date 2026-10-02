@@ -725,3 +725,45 @@ h2 {
 
   .round-button { width: 58px; height: 58px; }
 }
+
+.price-control {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 13px;
+  background: var(--soft);
+}
+
+.control-title {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: .86rem;
+}
+
+.price-dropdown {
+  position: relative;
+}
+
+.price-dropdown summary {
+  cursor: pointer;
+  font-weight: 750;
+  list-style: none;
+}
+
+.price-options {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.price-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.price-options input {
+  accent-color: white;
+}
