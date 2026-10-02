@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d0f13">
+  <title>Sidequest — Swipe right on your next adventure</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <p class="eyebrow">SIDEQUEST</p>
+        <h1>Swipe right on your next adventure.</h1>
+      </div>
+
+      <label class="city-picker">
+        <span>City</span>
+        <select id="city">
+          <optgroup label="Priority">
+            <option value="pittsburgh" selected>Pittsburgh</option>
+          </optgroup>
+          <optgroup label="Bay Area">
+            <option value="san_francisco">San Francisco</option>
+            <option value="palo_alto">Palo Alto</option>
+            <option value="san_jose">San Jose</option>
+            <option value="santa_clara">Santa Clara</option>
+            <option value="cupertino">Cupertino</option>
+            <option value="berkeley">Berkeley</option>
+          </optgroup>
+          <optgroup label="Other cities">
+            <option value="new_york">New York City</option>
+            <option value="los_angeles">Los Angeles</option>
+            <option value="boston">Boston</option>
+            <option value="seattle">Seattle</option>
+            <option value="atlanta">Atlanta</option>
+          </optgroup>
+        </select>
+      </label>
+    </header>
+
+    <nav class="tabs" aria-label="Main navigation">
+      <button class="tab active" data-view="discover">Discover</button>
+      <button class="tab" data-view="saved">♥ Saved <span id="savedCount">0</span></button>
+      <button class="tab" data-view="completed">✓ Completed <span id="completedCount">0</span></button>
+      <button class="tab" data-view="history">↻ History</button>
+    </nav>
+
+    <main>
+      <section id="discoverView" class="view active">
+        <section class="control-panel">
+          <div class="control-section">
+            <p class="control-label">What sounds good?</p>
+            <div class="category-row" id="categoryRow">
+              <button class="category active" data-category="surprise">🎲 Surprise me</button>
+              <button class="category" data-category="food">🍜 Food</button>
+              <button class="category" data-category="coffee">☕ Coffee</button>
+              <button class="category" data-category="outdoors">🌿 Outdoors</button>
+              <button class="category" data-category="culture">🎨 Culture</button>
+              <button class="category" data-category="nightlife">🌙 Nightlife</button>
+              <button class="category" data-category="activities">🎯 Activities</button>
+            </div>
+          </div>
+
+          <div class="control-grid">
+            <label class="range-control">
+              <div>
+                <span>Time at destination</span>
+                <strong id="timeValue">2 hr</strong>
+              </div>
+              <input id="timeRange" type="range" min="0" max="4" step="1" value="2">
+              <div class="range-ends"><span>30 min</span><span>4+ hr</span></div>
+            </label>
+
+            <label class="range-control">
+              <div>
+                <span>How far?</span>
+                <strong id="distanceValue">10 mi</strong>
+              </div>
+              <input id="distanceRange" type="range" min="1" max="25" step="1" value="10">
+              <div class="range-ends"><span>1 mi</span><span>25 mi</span></div>
+            </label>
+
+            <label class="range-control">
+              <div>
+                <span>Budget</span>
+                <strong id="budgetValue">$$</strong>
+              </div>
+              <input id="budgetRange" type="range" min="0" max="4" step="1" value="2">
+              <div class="range-ends"><span>Free</span><span>$$$$</span></div>
+            </label>
+
+            <fieldset class="party-control">
+              <legend>Who's coming?</legend>
+              <div class="segment-control">
+                <input type="radio" name="party" id="partySolo" value="solo" checked>
+                <label for="partySolo">Just me</label>
+                <input type="radio" name="party" id="partyFriends" value="friends">
+                <label for="partyFriends">Me + friends</label>
+                <input type="radio" name="party" id="partyGroup" value="group">
+                <label for="partyGroup">Whole group</label>
+              </div>
+            </fieldset>
+          </div>
+
+          <div class="control-footer">
+            <p>Distance is measured from the selected city's center for this MVP.</p>
+            <button id="refreshDeck" class="primary-button">Find sidequests</button>
+          </div>
+        </section>
+
+        <p id="status" class="status" aria-live="polite">Loading places…</p>
+
+        <div id="deck" class="deck" aria-live="polite"></div>
+
+        <div class="swipe-actions">
+          <button id="rejectButton" class="round-button reject" aria-label="Pass on this place">✕</button>
+          <button id="likeButton" class="round-button like" aria-label="Save this place">♥</button>
+        </div>
+
+        <p class="swipe-hint">Swipe/drag ← to pass · → to save. Bookmark and Complete live inside each quest card.</p>
+      </section>
+
+      <section id="savedView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">YOUR SIDEQUESTS</p>
+            <h2>Bookmarked</h2>
+          </div>
+        </div>
+        <div id="savedGrid" class="place-grid"></div>
+      </section>
+
+      <section id="completedView" class="view">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">QUEST LOG</p>
+            <h2>Completed</h2>
+          </div>
+        </div>
+        <div id="completedGrid" class="place-grid"></div>
+      </section>
+
+      <section id="historyView" class="view">
+        <div class="section-heading history-heading">
+          <div>
+            <p class="eyebrow">SWIPE HISTORY</p>
+            <h2>Past decisions</h2>
+          </div>
+          <button id="clearHistory" class="text-button">Clear history</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
