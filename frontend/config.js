@@ -1,1 +1,1 @@
-window.SIDEQUEST_BACKEND_URL = "http://127.0.0.1:5055";
+window.SIDEQUEST_BACKEND_URL = "https://sidequest-capstone-v2.onrender.com";
