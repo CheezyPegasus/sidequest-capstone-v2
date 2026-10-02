@@ -1,4 +1,4 @@
-const BACKEND_URL = window.SIDEQUEST_BACKEND_URL || "http://127.0.0.1:5000";
+const BACKEND_URL = window.SIDEQUEST_BACKEND_URL || "http://127.0.0.1:5055";
 
 const storageKeys = {
   saved: "sidequest:v2:saved",
@@ -14,14 +14,11 @@ const TIME_OPTIONS = [
   { minutes: 360, label: "4+ hr" }
 ];
 
-const BUDGET_LABELS = ["Free", "$", "$$", "$$$", "$$$$"];
-
 const state = {
   city: "pittsburgh",
   category: "surprise",
   maxMinutes: 120,
-  maxDistance: 10,
-  budget: 2,
+  maxDistance: 25,
   party: "solo",
   places: [],
   currentIndex: 0,
@@ -43,8 +40,8 @@ const els = {
   timeValue: document.querySelector("#timeValue"),
   distanceRange: document.querySelector("#distanceRange"),
   distanceValue: document.querySelector("#distanceValue"),
-  budgetRange: document.querySelector("#budgetRange"),
-  budgetValue: document.querySelector("#budgetValue"),
+  priceSummary: document.querySelector("#priceSummary"),
+  priceInputs: [...document.querySelectorAll('input[name="price"]')],
   savedCount: document.querySelector("#savedCount"),
   completedCount: document.querySelector("#completedCount"),
   savedGrid: document.querySelector("#savedGrid"),
@@ -100,7 +97,14 @@ function categoryLabel(place) {
 
 function photoURL(photoName) {
   if (!photoName) return "";
-  if (photoName.startsWith("http://") || photoName.startsWith("https://")) return photoName;
+
+  if (
+    photoName.startsWith("http://") ||
+    photoName.startsWith("https://")
+  ) {
+    return photoName;
+  }
+
   return `${BACKEND_URL}/photo?name=${encodeURIComponent(photoName)}`;
 }
 
@@ -115,35 +119,79 @@ function firstPhoto(place) {
 }
 
 function scoreText(value) {
-  if (value === null || value === undefined) return "Unknown";
+  if (value === null || value === undefined) {
+    return "Unknown";
+  }
+
   return `${value}/5`;
 }
 
 function renderPhoto(place) {
   const names = placePhotos(place);
   const stage = document.querySelector("#photoStage");
-  if (!stage) return;
+
+  if (!stage) {
+    return;
+  }
 
   if (!names.length) {
     stage.innerHTML = `<div class="image-placeholder"></div>`;
     return;
   }
 
-  state.photoIndex = Math.max(0, Math.min(state.photoIndex, names.length - 1));
+  state.photoIndex = Math.max(
+    0,
+    Math.min(state.photoIndex, names.length - 1)
+  );
 
-  const dots = names.slice(0, 8).map((_, i) =>
-    `<button class="photo-dot ${i === state.photoIndex ? "active" : ""}" data-photo-index="${i}" aria-label="Photo ${i + 1}"></button>`
-  ).join("");
+  const dots = names
+    .slice(0, 8)
+    .map(
+      (_, i) =>
+        `<button
+          class="photo-dot ${i === state.photoIndex ? "active" : ""}"
+          data-photo-index="${i}"
+          aria-label="Photo ${i + 1}"
+        ></button>`
+    )
+    .join("");
 
   stage.innerHTML = `
-    <img src="${escapeHTML(photoURL(names[state.photoIndex]))}"
-         alt="${escapeHTML(place.name)} photo ${state.photoIndex + 1}"
-         draggable="false">
-    <span class="photo-counter">${state.photoIndex + 1} / ${Math.min(names.length, 8)}</span>
-    ${names.length > 1 ? `
-      <button class="photo-button prev" data-photo-action="prev" aria-label="Previous photo">‹</button>
-      <button class="photo-button next" data-photo-action="next" aria-label="Next photo">›</button>
-      <div class="photo-dots">${dots}</div>` : ""}
+    <img
+      src="${escapeHTML(photoURL(names[state.photoIndex]))}"
+      alt="${escapeHTML(place.name)} photo ${state.photoIndex + 1}"
+      draggable="false"
+    >
+
+    <span class="photo-counter">
+      ${state.photoIndex + 1} / ${Math.min(names.length, 8)}
+    </span>
+
+    ${
+      names.length > 1
+        ? `
+          <button
+            class="photo-button prev"
+            data-photo-action="prev"
+            aria-label="Previous photo"
+          >
+            ‹
+          </button>
+
+          <button
+            class="photo-button next"
+            data-photo-action="next"
+            aria-label="Next photo"
+          >
+            ›
+          </button>
+
+          <div class="photo-dots">
+            ${dots}
+          </div>
+        `
+        : ""
+    }
   `;
 }
 
@@ -155,66 +203,172 @@ function renderCard(place) {
       <div class="empty-state">
         <strong>No more cards.</strong><br>
         Change your filters or press “Find sidequests” for another deck.
-      </div>`;
+      </div>
+    `;
+
     els.rejectButton.disabled = true;
     els.likeButton.disabled = true;
+
     return;
   }
 
   els.rejectButton.disabled = false;
   els.likeButton.disabled = false;
 
-  const rating = place.rating ? `★ ${place.rating}` : "No rating";
-  const reviews = place.user_rating_count ? `${place.user_rating_count.toLocaleString()} ratings` : "Rating count n/a";
+  const rating = place.rating
+    ? `★ ${place.rating}`
+    : "No rating";
+
+  const reviews = place.user_rating_count
+    ? `${place.user_rating_count.toLocaleString()} ratings`
+    : "Rating count n/a";
+
   const price = place.price_label || "Price unknown";
   const time = place.estimated_time_label || "Time varies";
-  const distance = Number.isFinite(place.distance_miles) ? `${place.distance_miles.toFixed(1)} mi` : "Distance n/a";
+
+  const distance = Number.isFinite(place.distance_miles)
+    ? `${place.distance_miles.toFixed(1)} mi`
+    : "Distance n/a";
+
   const mapsURL = place.maps_url || "#";
-  const objectives = (place.quest_objectives || []).slice(0, 6)
-    .map((objective) => `<li>${escapeHTML(objective)}</li>`).join("");
+
+  const objectives = (place.quest_objectives || [])
+    .slice(0, 6)
+    .map(
+      (objective) =>
+        `<li>${escapeHTML(objective)}</li>`
+    )
+    .join("");
 
   els.deck.innerHTML = `
     <article class="place-card" id="activeCard">
-      <div class="swipe-stamp nope" id="nopeStamp">NOPE</div>
-      <div class="swipe-stamp save" id="saveStamp">SAVE ♥</div>
+      <div class="swipe-stamp nope" id="nopeStamp">
+        NOPE
+      </div>
+
+      <div class="swipe-stamp save" id="saveStamp">
+        SAVE ♥
+      </div>
 
       <div class="card-scroll">
-        <div class="photo-stage" id="photoStage"></div>
+        <div
+          class="photo-stage"
+          id="photoStage"
+        ></div>
 
         <div class="card-content">
-          <p class="card-kicker">${escapeHTML(categoryLabel(place))}</p>
-          <h2 class="card-title">${escapeHTML(place.name)}</h2>
-          <a class="address-link" href="${escapeHTML(mapsURL)}" target="_blank" rel="noopener">
+          <p class="card-kicker">
+            ${escapeHTML(categoryLabel(place))}
+          </p>
+
+          <h2 class="card-title">
+            ${escapeHTML(place.name)}
+          </h2>
+
+          <a
+            class="address-link"
+            href="${escapeHTML(mapsURL)}"
+            target="_blank"
+            rel="noopener"
+          >
             ${escapeHTML(place.address || "Address unavailable")} ↗
           </a>
 
           <div class="quick-meta">
-            <span class="meta-pill">${escapeHTML(rating)}</span>
-            <span class="meta-pill">${escapeHTML(reviews)}</span>
-            <span class="meta-pill">${escapeHTML(price)}</span>
-            <span class="meta-pill">~${escapeHTML(time)}</span>
-            <span class="meta-pill">${escapeHTML(distance)}</span>
+            <span class="meta-pill">
+              ${escapeHTML(rating)}
+            </span>
+
+            <span class="meta-pill">
+              ${escapeHTML(reviews)}
+            </span>
+
+            <span class="meta-pill">
+              ${escapeHTML(price)}
+            </span>
+
+            <span class="meta-pill">
+              ~${escapeHTML(time)}
+            </span>
+
+            <span class="meta-pill">
+              ${escapeHTML(distance)}
+            </span>
           </div>
 
-          <p class="intro">${escapeHTML(place.intro || "A potential sidequest worth checking out.")}</p>
+          <p class="intro">
+            ${escapeHTML(
+              place.intro ||
+              "A potential sidequest worth checking out."
+            )}
+          </p>
 
           <div class="metric-grid">
-            <div class="metric"><span>Nicheness</span><strong>${scoreText(place.metrics?.nicheness)}</strong></div>
-            <div class="metric"><span>Distance fit</span><strong>${scoreText(place.metrics?.distance)}</strong></div>
-            <div class="metric"><span>Popularity</span><strong>${scoreText(place.metrics?.popularity)}</strong></div>
-            <div class="metric"><span>Accessibility</span><strong>${scoreText(place.metrics?.accessibility)}</strong></div>
-            <div class="metric"><span>Adventure</span><strong>${scoreText(place.metrics?.adventure)}</strong></div>
-            <div class="metric"><span>Group fit</span><strong>${scoreText(place.metrics?.group_fit)}</strong></div>
+            <div class="metric">
+              <span>Nicheness</span>
+              <strong>
+                ${scoreText(place.metrics?.nicheness)}
+              </strong>
+            </div>
+
+            <div class="metric">
+              <span>Distance fit</span>
+              <strong>
+                ${scoreText(place.metrics?.distance)}
+              </strong>
+            </div>
+
+            <div class="metric">
+              <span>Popularity</span>
+              <strong>
+                ${scoreText(place.metrics?.popularity)}
+              </strong>
+            </div>
+
+            <div class="metric">
+              <span>Accessibility</span>
+              <strong>
+                ${scoreText(place.metrics?.accessibility)}
+              </strong>
+            </div>
+
+            <div class="metric">
+              <span>Adventure</span>
+              <strong>
+                ${scoreText(place.metrics?.adventure)}
+              </strong>
+            </div>
+
+            <div class="metric">
+              <span>Group fit</span>
+              <strong>
+                ${scoreText(place.metrics?.group_fit)}
+              </strong>
+            </div>
           </div>
 
           <section class="objectives">
             <h3>Quest objectives</h3>
-            <ol>${objectives}</ol>
+
+            <ol>
+              ${objectives}
+            </ol>
           </section>
 
           <div class="card-actions">
-            <button class="card-action" data-card-action="bookmark">♡ Bookmark quest</button>
-            <button class="card-action primary" data-card-action="complete">✓ Mark complete</button>
+            <button
+              class="card-action"
+              data-card-action="bookmark"
+            >
+              ♡ Bookmark quest
+            </button>
+
+            <button
+              class="card-action primary"
+              data-card-action="complete"
+            >
+              ✓ Mark complete
+            </button>
           </div>
         </div>
       </div>
@@ -222,29 +376,74 @@ function renderCard(place) {
   `;
 
   renderPhoto(place);
-  attachSwipeGesture(document.querySelector("#activeCard"));
+
+  attachSwipeGesture(
+    document.querySelector("#activeCard")
+  );
+}
+
+function selectedPrices() {
+  return els.priceInputs
+    .filter((input) => input.checked)
+    .map((input) => Number(input.value));
+}
+
+function updatePriceSummary() {
+  const labels = [
+    "Free",
+    "$",
+    "$$",
+    "$$$",
+    "$$$$"
+  ];
+
+  const selected = selectedPrices();
+
+  els.priceSummary.textContent = selected.length
+    ? selected
+        .map((value) => labels[value])
+        .join(", ")
+    : "Select prices";
 }
 
 function syncControls() {
-  const timeOption = TIME_OPTIONS[Number(els.timeRange.value)] || TIME_OPTIONS[2];
-  els.timeValue.textContent = timeOption.label;
-  els.distanceValue.textContent = `${els.distanceRange.value} mi`;
-  els.budgetValue.textContent = BUDGET_LABELS[Number(els.budgetRange.value)] || "$$";
+  const timeOption =
+    TIME_OPTIONS[Number(els.timeRange.value)] ||
+    TIME_OPTIONS[2];
+
+  els.timeValue.textContent =
+    timeOption.label;
+
+  els.distanceValue.textContent =
+    `${els.distanceRange.value} mi`;
 }
 
 function readControls() {
   state.city = els.city.value;
-  state.maxMinutes = TIME_OPTIONS[Number(els.timeRange.value)]?.minutes || 120;
-  state.maxDistance = Number(els.distanceRange.value);
-  state.budget = Number(els.budgetRange.value);
+
+  state.maxMinutes =
+    TIME_OPTIONS[
+      Number(els.timeRange.value)
+    ]?.minutes || 120;
+
+  state.maxDistance =
+    Number(els.distanceRange.value);
+
   state.party = currentParty();
 }
 
 async function loadPlaces() {
-  if (state.loading) return;
+  if (state.loading) {
+    return;
+  }
+
   readControls();
+
   state.loading = true;
-  els.status.textContent = "Finding sidequests…";
+
+  els.status.textContent =
+    "Finding sidequests…";
+
   els.rejectButton.disabled = true;
   els.likeButton.disabled = true;
   els.refreshDeck.disabled = true;
@@ -255,48 +454,63 @@ async function loadPlaces() {
       category: state.category,
       max_minutes: String(state.maxMinutes),
       max_distance: String(state.maxDistance),
-      budget: String(state.budget),
+      prices: selectedPrices().join(","),
       party: state.party,
-      limit: "20"
+      limit: "60"
     });
 
-    const response = await fetch(`${BACKEND_URL}/places?${params.toString()}`);
+    const response = await fetch(
+      `${BACKEND_URL}/places?${params.toString()}`
+    );
+
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Could not load places.");
+      throw new Error(
+        data.error ||
+        "Could not load places."
+      );
     }
 
-    state.places = data.places || [];
+    state.places =
+      data.places || [];
+
     state.currentIndex = 0;
 
-    const demoNote = data.source === "demo"
-      ? " Demo mode is active — add GOOGLE_PLACES_API_KEY for live results."
-      : "";
+    const demoNote =
+      data.source === "demo"
+        ? " Demo mode is active — add GOOGLE_PLACES_API_KEY for live results."
+        : "";
 
-    els.status.textContent = `${state.places.length} sidequests loaded.${demoNote}`;
+    els.status.textContent =
+      `${state.places.length} sidequests loaded.${demoNote}`;
+
     renderCard(currentPlace());
   } catch (error) {
     state.places = [];
     state.currentIndex = 0;
+
     els.rejectButton.disabled = true;
     els.likeButton.disabled = true;
 
-    const networkHelp = error instanceof TypeError
-      ? `<div class="error-state">
-          <strong>Frontend is running, but the backend is offline.</strong>
-          Start Flask in a second Terminal, then reload this page.
-          <code>cd ~/Downloads/sidequest-capstone-v2/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python app.py</code>
-          Then test <code>http://127.0.0.1:5000/health</code>
-        </div>`
-      : `<div class="error-state"><strong>Could not load Sidequests.</strong>${escapeHTML(error.message)}</div>`;
+    els.deck.innerHTML = `
+      <div class="error-state">
+        <strong>
+          Could not load Sidequests.
+        </strong>
 
-    els.deck.innerHTML = networkHelp;
-    els.status.textContent = "Could not reach the Sidequest backend.";
+        <p>
+          ${escapeHTML(error.message)}
+        </p>
+
+        <p>
+          Check the deployed backend or try again.
+        </p>
+      </div>
+    `;
+
+    els.status.textContent =
+      "Could not reach the Sidequest backend.";
   } finally {
     state.loading = false;
     els.refreshDeck.disabled = false;
@@ -305,13 +519,21 @@ python app.py</code>
 
 function storeUnique(listName, place) {
   const list = state[listName];
-  if (!list.some((item) => item.id === place.id)) {
+
+  if (
+    !list.some(
+      (item) => item.id === place.id
+    )
+  ) {
     list.unshift(place);
   }
 }
 
 function removeById(listName, id) {
-  state[listName] = state[listName].filter((place) => place.id !== id);
+  state[listName] =
+    state[listName].filter(
+      (place) => place.id !== id
+    );
 }
 
 function advanceCard() {
@@ -324,117 +546,299 @@ function logDecision(place, decision) {
     id: place.id,
     name: place.name,
     city_label: place.city_label,
-    primary_type_label: place.primary_type_label,
-    photo_names: place.photo_names,
+    primary_type_label:
+      place.primary_type_label,
+    photo_names:
+      place.photo_names,
+    demo_photo_urls:
+      place.demo_photo_urls,
     decision,
-    swiped_at: new Date().toISOString()
+    swiped_at:
+      new Date().toISOString()
   });
-  state.history = state.history.slice(0, 100);
+
+  state.history =
+    state.history.slice(0, 100);
 }
 
 function swipe(direction) {
   const place = currentPlace();
-  const card = document.querySelector("#activeCard");
-  if (!place || !card) return;
 
-  const liked = direction === "right";
-  logDecision(place, liked ? "liked" : "passed");
+  const card =
+    document.querySelector(
+      "#activeCard"
+    );
 
-  if (liked) storeUnique("saved", place);
+  if (!place || !card) {
+    return;
+  }
+
+  const liked =
+    direction === "right";
+
+  logDecision(
+    place,
+    liked ? "liked" : "passed"
+  );
+
+  if (liked) {
+    storeUnique("saved", place);
+  }
 
   saveState();
 
-  const exitX = direction === "right" ? window.innerWidth : -window.innerWidth;
-  card.style.transform = `translate(${exitX}px, -10px) rotate(${direction === "right" ? 18 : -18}deg)`;
+  const exitX =
+    direction === "right"
+      ? window.innerWidth
+      : -window.innerWidth;
+
+  card.style.transform =
+    `translate(${exitX}px, -10px) rotate(${
+      direction === "right"
+        ? 18
+        : -18
+    }deg)`;
+
   card.style.opacity = "0";
 
-  setTimeout(advanceCard, 220);
+  setTimeout(
+    advanceCard,
+    220
+  );
 }
 
 function attachSwipeGesture(card) {
   let startX = 0;
   let startY = 0;
+
   let currentX = 0;
   let currentY = 0;
+
   let dragging = false;
   let horizontalIntent = false;
 
-  const nopeStamp = card.querySelector("#nopeStamp");
-  const saveStamp = card.querySelector("#saveStamp");
+  const nopeStamp =
+    card.querySelector("#nopeStamp");
 
-  card.addEventListener("pointerdown", (event) => {
-    if (event.target.closest("a, button, input, label")) return;
-    dragging = true;
-    horizontalIntent = false;
-    startX = event.clientX;
-    startY = event.clientY;
-    currentX = 0;
-    currentY = 0;
-    card.classList.add("dragging");
-  });
+  const saveStamp =
+    card.querySelector("#saveStamp");
 
-  card.addEventListener("pointermove", (event) => {
-    if (!dragging) return;
+  card.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (
+        event.target.closest(
+          "a, button, input, label"
+        )
+      ) {
+        return;
+      }
 
-    currentX = event.clientX - startX;
-    currentY = event.clientY - startY;
+      dragging = true;
+      horizontalIntent = false;
 
-    if (!horizontalIntent && Math.abs(currentX) > 8) {
-      horizontalIntent = Math.abs(currentX) > Math.abs(currentY) * 1.25;
+      startX = event.clientX;
+      startY = event.clientY;
+
+      currentX = 0;
+      currentY = 0;
+
+      card.classList.add(
+        "dragging"
+      );
     }
+  );
 
-    if (!horizontalIntent) return;
+  card.addEventListener(
+    "pointermove",
+    (event) => {
+      if (!dragging) {
+        return;
+      }
 
-    const rotation = Math.max(-14, Math.min(14, currentX / 18));
-    card.style.transform = `translateX(${currentX}px) rotate(${rotation}deg)`;
+      currentX =
+        event.clientX - startX;
 
-    const strength = Math.min(1, Math.abs(currentX) / 110);
-    if (currentX > 0) {
-      saveStamp.style.opacity = strength;
-      nopeStamp.style.opacity = 0;
-    } else {
-      nopeStamp.style.opacity = strength;
-      saveStamp.style.opacity = 0;
+      currentY =
+        event.clientY - startY;
+
+      if (
+        !horizontalIntent &&
+        Math.abs(currentX) > 8
+      ) {
+        horizontalIntent =
+          Math.abs(currentX) >
+          Math.abs(currentY) * 1.25;
+      }
+
+      if (!horizontalIntent) {
+        return;
+      }
+
+      const rotation = Math.max(
+        -14,
+        Math.min(
+          14,
+          currentX / 18
+        )
+      );
+
+      card.style.transform =
+        `translateX(${currentX}px) rotate(${rotation}deg)`;
+
+      const strength =
+        Math.min(
+          1,
+          Math.abs(currentX) / 110
+        );
+
+      if (currentX > 0) {
+        saveStamp.style.opacity =
+          strength;
+
+        nopeStamp.style.opacity =
+          0;
+      } else {
+        nopeStamp.style.opacity =
+          strength;
+
+        saveStamp.style.opacity =
+          0;
+      }
     }
-  });
+  );
 
   const finish = () => {
-    if (!dragging) return;
-    dragging = false;
-    card.classList.remove("dragging");
+    if (!dragging) {
+      return;
+    }
 
-    if (horizontalIntent && Math.abs(currentX) >= 105) {
-      swipe(currentX > 0 ? "right" : "left");
+    dragging = false;
+
+    card.classList.remove(
+      "dragging"
+    );
+
+    if (
+      horizontalIntent &&
+      Math.abs(currentX) >= 105
+    ) {
+      swipe(
+        currentX > 0
+          ? "right"
+          : "left"
+      );
+
       return;
     }
 
     card.style.transform = "";
+
     nopeStamp.style.opacity = 0;
     saveStamp.style.opacity = 0;
   };
 
-  card.addEventListener("pointerup", finish);
-  card.addEventListener("pointercancel", finish);
+  card.addEventListener(
+    "pointerup",
+    finish
+  );
+
+  card.addEventListener(
+    "pointercancel",
+    finish
+  );
 }
 
-function collectionCard(place, completed = false) {
-  const photoName = firstPhoto(place);
+function collectionCard(
+  place,
+  completed = false
+) {
+  const photoName =
+    firstPhoto(place);
+
   const image = photoName
-    ? `<img src="${escapeHTML(photoURL(photoName))}" alt="${escapeHTML(place.name)}">`
-    : `<div class="image-placeholder"></div>`;
+    ? `
+      <img
+        src="${escapeHTML(
+          photoURL(photoName)
+        )}"
+        alt="${escapeHTML(
+          place.name
+        )}"
+      >
+    `
+    : `
+      <div
+        class="image-placeholder"
+      ></div>
+    `;
 
   return `
     <article class="saved-card">
       ${image}
+
       <div class="saved-body">
-        <h3>${escapeHTML(place.name)}</h3>
-        <p>${escapeHTML(place.city_label || "")} · ${escapeHTML(categoryLabel(place))}</p>
+        <h3>
+          ${escapeHTML(place.name)}
+        </h3>
+
+        <p>
+          ${escapeHTML(
+            place.city_label || ""
+          )}
+          ·
+          ${escapeHTML(
+            categoryLabel(place)
+          )}
+        </p>
+
         <div class="saved-actions">
-          <a class="small-button" href="${escapeHTML(place.maps_url || "#")}" target="_blank" rel="noopener">Maps ↗</a>
-          ${completed
-            ? `<button class="small-button" data-action="uncomplete" data-id="${escapeHTML(place.id)}">Undo complete</button>`
-            : `<button class="small-button primary" data-action="complete" data-id="${escapeHTML(place.id)}">✓ Complete</button>
-               <button class="small-button" data-action="remove" data-id="${escapeHTML(place.id)}">Remove</button>`}
+          <a
+            class="small-button"
+            href="${escapeHTML(
+              place.maps_url || "#"
+            )}"
+            target="_blank"
+            rel="noopener"
+          >
+            Maps ↗
+          </a>
+
+          ${
+            completed
+              ? `
+                <button
+                  class="small-button"
+                  data-action="uncomplete"
+                  data-id="${escapeHTML(
+                    place.id
+                  )}"
+                >
+                  Undo complete
+                </button>
+              `
+              : `
+                <button
+                  class="small-button primary"
+                  data-action="complete"
+                  data-id="${escapeHTML(
+                    place.id
+                  )}"
+                >
+                  ✓ Complete
+                </button>
+
+                <button
+                  class="small-button"
+                  data-action="remove"
+                  data-id="${escapeHTML(
+                    place.id
+                  )}"
+                >
+                  Remove
+                </button>
+              `
+          }
         </div>
       </div>
     </article>
@@ -443,159 +847,439 @@ function collectionCard(place, completed = false) {
 
 function renderSaved() {
   if (!state.saved.length) {
-    els.savedGrid.innerHTML = `<div class="empty-state">Bookmark a quest or swipe right and it will appear here.</div>`;
+    els.savedGrid.innerHTML = `
+      <div class="empty-state">
+        Bookmark a quest or swipe right
+        and it will appear here.
+      </div>
+    `;
+
     return;
   }
-  els.savedGrid.innerHTML = state.saved.map((place) => collectionCard(place, false)).join("");
+
+  els.savedGrid.innerHTML =
+    state.saved
+      .map(
+        (place) =>
+          collectionCard(
+            place,
+            false
+          )
+      )
+      .join("");
 }
 
 function renderCompleted() {
   if (!state.completed.length) {
-    els.completedGrid.innerHTML = `<div class="empty-state">Finish a quest and log it here.</div>`;
+    els.completedGrid.innerHTML = `
+      <div class="empty-state">
+        Finish a quest and log it here.
+      </div>
+    `;
+
     return;
   }
-  els.completedGrid.innerHTML = state.completed.map((place) => collectionCard(place, true)).join("");
+
+  els.completedGrid.innerHTML =
+    state.completed
+      .map(
+        (place) =>
+          collectionCard(
+            place,
+            true
+          )
+      )
+      .join("");
 }
 
 function renderHistory() {
   if (!state.history.length) {
-    els.historyList.innerHTML = `<div class="empty-state">Your swipes will appear here.</div>`;
+    els.historyList.innerHTML = `
+      <div class="empty-state">
+        Your swipes will appear here.
+      </div>
+    `;
+
     return;
   }
 
-  els.historyList.innerHTML = state.history.map((item) => `
-    <article class="history-item">
-      <div class="history-icon">${item.decision === "liked" ? "♥" : "✕"}</div>
-      <div>
-        <h3>${escapeHTML(item.name)}</h3>
-        <p>${escapeHTML(item.city_label || "")} · ${item.decision === "liked" ? "Saved" : "Passed"}</p>
-      </div>
-      ${item.decision === "passed"
-        ? `<button class="small-button" data-action="restore" data-id="${escapeHTML(item.id)}">Restore</button>`
-        : ""}
-    </article>
-  `).join("");
+  els.historyList.innerHTML =
+    state.history
+      .map(
+        (item) => `
+          <article class="history-item">
+            <div class="history-icon">
+              ${
+                item.decision === "liked"
+                  ? "♥"
+                  : "✕"
+              }
+            </div>
+
+            <div>
+              <h3>
+                ${escapeHTML(
+                  item.name
+                )}
+              </h3>
+
+              <p>
+                ${escapeHTML(
+                  item.city_label || ""
+                )}
+                ·
+                ${
+                  item.decision === "liked"
+                    ? "Saved"
+                    : "Passed"
+                }
+              </p>
+            </div>
+
+            ${
+              item.decision === "passed"
+                ? `
+                  <button
+                    class="small-button"
+                    data-action="restore"
+                    data-id="${escapeHTML(
+                      item.id
+                    )}"
+                  >
+                    Restore
+                  </button>
+                `
+                : ""
+            }
+          </article>
+        `
+      )
+      .join("");
 }
 
 function setView(name) {
-  els.tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.view === name));
-  els.views.forEach((view) => view.classList.toggle("active", view.id === `${name}View`));
+  els.tabs.forEach(
+    (tab) =>
+      tab.classList.toggle(
+        "active",
+        tab.dataset.view === name
+      )
+  );
 
-  if (name === "saved") renderSaved();
-  if (name === "completed") renderCompleted();
-  if (name === "history") renderHistory();
+  els.views.forEach(
+    (view) =>
+      view.classList.toggle(
+        "active",
+        view.id === `${name}View`
+      )
+  );
+
+  if (name === "saved") {
+    renderSaved();
+  }
+
+  if (name === "completed") {
+    renderCompleted();
+  }
+
+  if (name === "history") {
+    renderHistory();
+  }
 }
 
-function completePlace(place, advance = false) {
-  storeUnique("completed", place);
-  removeById("saved", place.id);
+function completePlace(
+  place,
+  advance = false
+) {
+  storeUnique(
+    "completed",
+    place
+  );
+
+  removeById(
+    "saved",
+    place.id
+  );
+
   saveState();
-  if (advance) advanceCard();
+
+  if (advance) {
+    advanceCard();
+  }
 }
 
-els.timeRange.addEventListener("input", syncControls);
-els.distanceRange.addEventListener("input", syncControls);
-els.budgetRange.addEventListener("input", syncControls);
+els.timeRange.addEventListener(
+  "input",
+  syncControls
+);
 
-els.categories.forEach((button) => {
-  button.addEventListener("click", () => {
-    els.categories.forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    state.category = button.dataset.category;
-  });
-});
+els.distanceRange.addEventListener(
+  "input",
+  syncControls
+);
 
-els.refreshDeck.addEventListener("click", loadPlaces);
-els.city.addEventListener("change", loadPlaces);
+els.priceInputs.forEach(
+  (input) => {
+    input.addEventListener(
+      "change",
+      updatePriceSummary
+    );
+  }
+);
 
-els.tabs.forEach((tab) => {
-  tab.addEventListener("click", () => setView(tab.dataset.view));
-});
+els.categories.forEach(
+  (button) => {
+    button.addEventListener(
+      "click",
+      () => {
+        els.categories.forEach(
+          (item) =>
+            item.classList.remove(
+              "active"
+            )
+        );
 
-els.rejectButton.addEventListener("click", () => swipe("left"));
-els.likeButton.addEventListener("click", () => swipe("right"));
+        button.classList.add(
+          "active"
+        );
 
-els.deck.addEventListener("click", (event) => {
-  const place = currentPlace();
-  if (!place) return;
+        state.category =
+          button.dataset.category;
+      }
+    );
+  }
+);
 
-  const photoAction = event.target.closest("[data-photo-action]");
-  if (photoAction) {
-    const count = Math.min((place.photo_names || []).length, 8);
-    if (!count) return;
-    if (photoAction.dataset.photoAction === "next") {
-      state.photoIndex = (state.photoIndex + 1) % count;
-    } else {
-      state.photoIndex = (state.photoIndex - 1 + count) % count;
+els.refreshDeck.addEventListener(
+  "click",
+  loadPlaces
+);
+
+els.city.addEventListener(
+  "change",
+  loadPlaces
+);
+
+els.tabs.forEach(
+  (tab) => {
+    tab.addEventListener(
+      "click",
+      () =>
+        setView(
+          tab.dataset.view
+        )
+    );
+  }
+);
+
+els.rejectButton.addEventListener(
+  "click",
+  () => swipe("left")
+);
+
+els.likeButton.addEventListener(
+  "click",
+  () => swipe("right")
+);
+
+els.deck.addEventListener(
+  "click",
+  (event) => {
+    const place =
+      currentPlace();
+
+    if (!place) {
+      return;
     }
-    renderPhoto(place);
-    return;
-  }
 
-  const photoDot = event.target.closest("[data-photo-index]");
-  if (photoDot) {
-    state.photoIndex = Number(photoDot.dataset.photoIndex);
-    renderPhoto(place);
-    return;
-  }
+    const photoAction =
+      event.target.closest(
+        "[data-photo-action]"
+      );
 
-  const action = event.target.closest("[data-card-action]")?.dataset.cardAction;
-  if (action === "bookmark") {
-    storeUnique("saved", place);
+    if (photoAction) {
+      const count =
+        placePhotos(place).length;
+
+      if (!count) {
+        return;
+      }
+
+      if (
+        photoAction.dataset
+          .photoAction === "next"
+      ) {
+        state.photoIndex =
+          (state.photoIndex + 1) %
+          count;
+      } else {
+        state.photoIndex =
+          (state.photoIndex - 1 + count) %
+          count;
+      }
+
+      renderPhoto(place);
+
+      return;
+    }
+
+    const photoDot =
+      event.target.closest(
+        "[data-photo-index]"
+      );
+
+    if (photoDot) {
+      state.photoIndex =
+        Number(
+          photoDot.dataset
+            .photoIndex
+        );
+
+      renderPhoto(place);
+
+      return;
+    }
+
+    const action =
+      event.target
+        .closest(
+          "[data-card-action]"
+        )
+        ?.dataset.cardAction;
+
+    if (action === "bookmark") {
+      storeUnique(
+        "saved",
+        place
+      );
+
+      saveState();
+
+      event.target.textContent =
+        "♥ Bookmarked";
+    }
+
+    if (action === "complete") {
+      completePlace(
+        place,
+        true
+      );
+    }
+  }
+);
+
+els.savedGrid.addEventListener(
+  "click",
+  (event) => {
+    const button =
+      event.target.closest(
+        "button[data-action]"
+      );
+
+    if (!button) {
+      return;
+    }
+
+    const place =
+      state.saved.find(
+        (item) =>
+          item.id ===
+          button.dataset.id
+      );
+
+    if (!place) {
+      return;
+    }
+
+    if (
+      button.dataset.action ===
+      "remove"
+    ) {
+      removeById(
+        "saved",
+        place.id
+      );
+    }
+
+    if (
+      button.dataset.action ===
+      "complete"
+    ) {
+      completePlace(
+        place,
+        false
+      );
+    }
+
     saveState();
-    event.target.textContent = "♥ Bookmarked";
+    renderSaved();
   }
+);
 
-  if (action === "complete") {
-    completePlace(place, true);
+els.completedGrid.addEventListener(
+  "click",
+  (event) => {
+    const button =
+      event.target.closest(
+        'button[data-action="uncomplete"]'
+      );
+
+    if (!button) {
+      return;
+    }
+
+    removeById(
+      "completed",
+      button.dataset.id
+    );
+
+    saveState();
+    renderCompleted();
   }
-});
+);
 
-els.savedGrid.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+els.historyList.addEventListener(
+  "click",
+  (event) => {
+    const button =
+      event.target.closest(
+        'button[data-action="restore"]'
+      );
 
-  const place = state.saved.find((item) => item.id === button.dataset.id);
-  if (!place) return;
+    if (!button) {
+      return;
+    }
 
-  if (button.dataset.action === "remove") {
-    removeById("saved", place.id);
+    const place =
+      state.places.find(
+        (item) =>
+          item.id ===
+          button.dataset.id
+      );
+
+    if (place) {
+      storeUnique(
+        "saved",
+        place
+      );
+
+      saveState();
+      renderHistory();
+    }
   }
+);
 
-  if (button.dataset.action === "complete") {
-    completePlace(place, false);
-  }
+els.clearHistory.addEventListener(
+  "click",
+  () => {
+    state.history = [];
 
-  saveState();
-  renderSaved();
-});
-
-els.completedGrid.addEventListener("click", (event) => {
-  const button = event.target.closest('button[data-action="uncomplete"]');
-  if (!button) return;
-  removeById("completed", button.dataset.id);
-  saveState();
-  renderCompleted();
-});
-
-els.historyList.addEventListener("click", (event) => {
-  const button = event.target.closest('button[data-action="restore"]');
-  if (!button) return;
-
-  const place = state.places.find((item) => item.id === button.dataset.id);
-  if (place) {
-    storeUnique("saved", place);
     saveState();
     renderHistory();
   }
-});
-
-els.clearHistory.addEventListener("click", () => {
-  state.history = [];
-  saveState();
-  renderHistory();
-});
+);
 
 syncControls();
+updatePriceSummary();
 updateCounts();
 loadPlaces();
