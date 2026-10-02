@@ -8,18 +8,7 @@ from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(
-    app,
-    resources={
-        r"/*": {
-            "origins": [
-                "http://127.0.0.1:8080",
-                "http://localhost:8080",
-                "https://cheezypegasus.github.io",
-            ]
-        }
-    },
-)
+CORS(app)
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
 GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
