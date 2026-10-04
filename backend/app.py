@@ -849,7 +849,7 @@ def places():
             int(
                 request.args.get(
                     "limit",
-                    80,
+                    200,
                 )
             ),
             1,
