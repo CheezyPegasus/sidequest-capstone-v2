@@ -456,7 +456,7 @@ async function loadPlaces() {
       max_distance: String(state.maxDistance),
       prices: selectedPrices().join(","),
       party: state.party,
-      limit: "60"
+      limit: "200"
     });
 
     const response = await fetch(
