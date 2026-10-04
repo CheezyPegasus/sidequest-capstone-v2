@@ -1351,7 +1351,13 @@ def photo():
         code=302,
     )
 
+@app.errorhandler(Exception)
+def handle_exception(error):
+    app.logger.exception("Unhandled backend error")
 
+    return jsonify({
+        "error": f"{type(error).__name__}: {str(error)}"
+    }), 500
 if __name__ == "__main__":
     app.run(
         debug=True,
