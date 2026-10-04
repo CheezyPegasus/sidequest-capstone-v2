@@ -935,234 +935,234 @@ def places():
         }
 
     if not API_KEY:
-    demo = demo_places(
-        city,
-        max_distance,
-        party,
-    )
-
-    return jsonify({
-        "places": demo,
-        "source": "demo",
-        "warning": (
-            "Geoapify API key "
-            "is not configured."
-        ),
-    })
-
-
-# Translate Sidequest categories
-# into Geoapify categories.
-geo_categories = {
-    "food": (
-        "catering.restaurant,"
-        "catering.fast_food,"
-        "catering.food_court"
-    ),
-
-    "coffee": (
-        "commercial.cafe"
-    ),
-
-    "outdoors": (
-        "leisure.park,"
-        "tourism"
-    ),
-
-    "culture": (
-        "entertainment.culture,"
-        "tourism"
-    ),
-
-    "nightlife": (
-        "catering.bar,"
-        "catering.pub,"
-        "entertainment"
-    ),
-
-    "activities": (
-        "entertainment"
-    ),
-
-    "surprise": (
-        "catering.restaurant,"
-        "catering.fast_food,"
-        "commercial.cafe,"
-        "leisure.park,"
-        "tourism,"
-        "entertainment"
-    ),
-}
-
-categories = geo_categories.get(
-    category,
-    geo_categories["surprise"],
-)
-
-radius_meters = int(
-    max_distance * 1609.344
-)
-
-# Fetch more than the desired final
-# deck size so local filtering has
-# enough candidates to work with.
-fetch_limit = min(
-    max(limit * 2, 200),
-    500,
-)
-
-params = {
-    "categories": categories,
-
-    "filter": (
-        f"circle:"
-        f"{city['lng']},"
-        f"{city['lat']},"
-        f"{radius_meters}"
-    ),
-
-    "bias": (
-        f"proximity:"
-        f"{city['lng']},"
-        f"{city['lat']}"
-    ),
-
-    "limit": fetch_limit,
-    "apiKey": API_KEY,
-}
-
-try:
-    response = requests.get(
-        GEOAPIFY_PLACES_URL,
-        params=params,
-        timeout=20,
-    )
-
-except requests.RequestException as exc:
-    return jsonify({
-        "error": (
-            "Could not reach "
-            f"Geoapify: {exc}"
+        demo = demo_places(
+            city,
+            max_distance,
+            party,
         )
-    }), 502
-
-
-if not response.ok:
-    try:
-        detail = response.json()
-
-    except ValueError:
-        detail = response.text
-
-    return jsonify({
-        "error": (
-            "Geoapify returned "
-            "an error."
+    
+        return jsonify({
+            "places": demo,
+            "source": "demo",
+            "warning": (
+                "Geoapify API key "
+                "is not configured."
+            ),
+        })
+    
+    
+    # Translate Sidequest categories
+    # into Geoapify categories.
+    geo_categories = {
+        "food": (
+            "catering.restaurant,"
+            "catering.fast_food,"
+            "catering.food_court"
         ),
-        "details": detail,
-    }), response.status_code
-
-
-features = response.json().get(
-    "features",
-    [],
-)
-
-raw_places = []
-
-
-for feature in features:
-    props = feature.get(
-        "properties",
-        {},
+    
+        "coffee": (
+            "commercial.cafe"
+        ),
+    
+        "outdoors": (
+            "leisure.park,"
+            "tourism"
+        ),
+    
+        "culture": (
+            "entertainment.culture,"
+            "tourism"
+        ),
+    
+        "nightlife": (
+            "catering.bar,"
+            "catering.pub,"
+            "entertainment"
+        ),
+    
+        "activities": (
+            "entertainment"
+        ),
+    
+        "surprise": (
+            "catering.restaurant,"
+            "catering.fast_food,"
+            "commercial.cafe,"
+            "leisure.park,"
+            "tourism,"
+            "entertainment"
+        ),
+    }
+    
+    categories = geo_categories.get(
+        category,
+        geo_categories["surprise"],
     )
-
-    categories_for_place = props.get(
-        "categories",
+    
+    radius_meters = int(
+        max_distance * 1609.344
+    )
+    
+    # Fetch more than the desired final
+    # deck size so local filtering has
+    # enough candidates to work with.
+    fetch_limit = min(
+        max(limit * 2, 200),
+        500,
+    )
+    
+    params = {
+        "categories": categories,
+    
+        "filter": (
+            f"circle:"
+            f"{city['lng']},"
+            f"{city['lat']},"
+            f"{radius_meters}"
+        ),
+    
+        "bias": (
+            f"proximity:"
+            f"{city['lng']},"
+            f"{city['lat']}"
+        ),
+    
+        "limit": fetch_limit,
+        "apiKey": API_KEY,
+    }
+    
+    try:
+        response = requests.get(
+            GEOAPIFY_PLACES_URL,
+            params=params,
+            timeout=20,
+        )
+    
+    except requests.RequestException as exc:
+        return jsonify({
+            "error": (
+                "Could not reach "
+                f"Geoapify: {exc}"
+            )
+        }), 502
+    
+    
+    if not response.ok:
+        try:
+            detail = response.json()
+    
+        except ValueError:
+            detail = response.text
+    
+        return jsonify({
+            "error": (
+                "Geoapify returned "
+                "an error."
+            ),
+            "details": detail,
+        }), response.status_code
+    
+    
+    features = response.json().get(
+        "features",
         [],
     )
-
-    name = (
-        props.get("name")
-        or props.get("address_line1")
-        or "Unnamed Sidequest"
-    )
-
-    primary_type = (
-        geoapify_primary_type(
-            categories_for_place
-        )
-    )
-
-    lat = props.get("lat")
-    lng = props.get("lon")
-
-    # Some Geoapify responses also
-    # carry coordinates in geometry.
-    if lat is None or lng is None:
-        geometry = feature.get(
-            "geometry",
+    
+    raw_places = []
+    
+    
+    for feature in features:
+        props = feature.get(
+            "properties",
             {},
         )
-
-        coordinates = geometry.get(
-            "coordinates",
+    
+        categories_for_place = props.get(
+            "categories",
             [],
         )
-
-        if len(coordinates) >= 2:
-            lng = coordinates[0]
-            lat = coordinates[1]
-
-    if lat is None or lng is None:
-        continue
-
-    raw_places.append({
-        "id": (
-            props.get("place_id")
-            or props.get("osm_id")
-            or f"{name}-{lat}-{lng}"
-        ),
-
-        "displayName": {
-            "text": name,
-        },
-
-        "formattedAddress": (
-            props.get("formatted")
-            or props.get("address_line2")
-            or ""
-        ),
-
-        "location": {
-            "latitude": lat,
-            "longitude": lng,
-        },
-
-        # Geoapify does not provide
-        # Google-style ratings/prices.
-        "rating": None,
-        "userRatingCount": 0,
-        "priceLevel": None,
-
-        "primaryType": primary_type,
-
-        "primaryTypeDisplayName": {
-            "text": (
-                primary_type
-                .replace("_", " ")
-                .title()
+    
+        name = (
+            props.get("name")
+            or props.get("address_line1")
+            or "Unnamed Sidequest"
+        )
+    
+        primary_type = (
+            geoapify_primary_type(
+                categories_for_place
             )
-        },
-
-        "types": categories_for_place,
-
-        # We'll handle real images
-        # separately after the deck works.
-        "photos": [],
-
-        "accessibilityOptions": {},
-    })
+        )
+    
+        lat = props.get("lat")
+        lng = props.get("lon")
+    
+        # Some Geoapify responses also
+        # carry coordinates in geometry.
+        if lat is None or lng is None:
+            geometry = feature.get(
+                "geometry",
+                {},
+            )
+    
+            coordinates = geometry.get(
+                "coordinates",
+                [],
+            )
+    
+            if len(coordinates) >= 2:
+                lng = coordinates[0]
+                lat = coordinates[1]
+    
+        if lat is None or lng is None:
+            continue
+    
+        raw_places.append({
+            "id": (
+                props.get("place_id")
+                or props.get("osm_id")
+                or f"{name}-{lat}-{lng}"
+            ),
+    
+            "displayName": {
+                "text": name,
+            },
+    
+            "formattedAddress": (
+                props.get("formatted")
+                or props.get("address_line2")
+                or ""
+            ),
+    
+            "location": {
+                "latitude": lat,
+                "longitude": lng,
+            },
+    
+            # Geoapify does not provide
+            # Google-style ratings/prices.
+            "rating": None,
+            "userRatingCount": 0,
+            "priceLevel": None,
+    
+            "primaryType": primary_type,
+    
+            "primaryTypeDisplayName": {
+                "text": (
+                    primary_type
+                    .replace("_", " ")
+                    .title()
+                )
+            },
+    
+            "types": categories_for_place,
+    
+            # We'll handle real images
+            # separately after the deck works.
+            "photos": [],
+    
+            "accessibilityOptions": {},
+        })
 
     normalized = []
 
