@@ -1253,91 +1253,141 @@ def place_images():
     name = request.args.get("name", "").strip()
     city = request.args.get("city", "").strip()
 
-    if not name:
-        return jsonify({
-            "images": []
-        })
-
-    search_text = f'"{name}" {city}'.strip()
-
-    params = {
-        "action": "query",
-        "generator": "search",
-        "gsrsearch": search_text,
-        "gsrnamespace": 6,
-        "gsrlimit": 6,
-        "prop": "imageinfo",
-        "iiprop": "url|mime",
-        "iiurlwidth": 1200,
-        "format": "json",
-        "formatversion": 2,
-    }
-
     try:
-        response = requests.get(
-            COMMONS_API_URL,
-            params=params,
-            headers={
-                "User-Agent": "Sidequest-CMU-Project/1.0"
-            },
-            timeout=10,
-        )
-
-        response.raise_for_status()
-        data = response.json()
-
-    except Exception as exc:
-        print(
-            "COMMONS IMAGE ERROR:",
-            exc,
-            flush=True,
-        )
-
-        return jsonify({
-            "images": []
-        })
+        lat = float(request.args.get("lat", ""))
+        lng = float(request.args.get("lng", ""))
+    except ValueError:
+        lat = None
+        lng = None
 
     images = []
 
-    pages = (
-        data.get("query", {})
-        .get("pages", [])
-    )
+    def add_images_from_pages(pages):
+        for page in pages:
+            info_list = page.get("imageinfo", [])
 
-    for page in pages:
-        info_list = page.get(
-            "imageinfo",
-            [],
-        )
+            if not info_list:
+                continue
 
-        if not info_list:
-            continue
+            info = info_list[0]
 
-        info = info_list[0]
+            mime = info.get("mime", "")
 
-        mime = info.get(
-            "mime",
-            "",
-        )
+            if not mime.startswith("image/"):
+                continue
 
-        if not mime.startswith("image/"):
-            continue
+            # Skip SVGs/logos/icons.
+            if mime == "image/svg+xml":
+                continue
 
-        url = (
-            info.get("thumburl")
-            or info.get("url")
-        )
+            url = (
+                info.get("thumburl")
+                or info.get("url")
+            )
 
-        if url and url not in images:
-            images.append(url)
+            if url and url not in images:
+                images.append(url)
 
-        if len(images) >= 3:
-            break
+            if len(images) >= 3:
+                break
+
+    # FIRST: search Commons images near
+    # the actual Sidequest coordinates.
+    if lat is not None and lng is not None:
+        geo_params = {
+            "action": "query",
+            "generator": "geosearch",
+            "ggsprimary": "all",
+            "ggsnamespace": 6,
+            "ggsradius": 1000,
+            "ggscoord": f"{lat}|{lng}",
+            "ggslimit": 12,
+            "prop": "imageinfo",
+            "iiprop": "url|mime",
+            "iiurlwidth": 1200,
+            "format": "json",
+            "formatversion": 2,
+        }
+
+        try:
+            response = requests.get(
+                COMMONS_API_URL,
+                params=geo_params,
+                headers={
+                    "User-Agent":
+                    "Sidequest-CMU-Project/1.0"
+                },
+                timeout=10,
+            )
+
+            response.raise_for_status()
+
+            pages = (
+                response.json()
+                .get("query", {})
+                .get("pages", [])
+            )
+
+            add_images_from_pages(pages)
+
+        except Exception as exc:
+            print(
+                "COMMONS GEO ERROR:",
+                exc,
+                flush=True,
+            )
+
+    # SECOND: if geographic search didn't
+    # find enough images, try the place name.
+    if len(images) < 3 and name:
+        search_params = {
+            "action": "query",
+            "generator": "search",
+
+            # Do NOT put the name in quotes.
+            "gsrsearch": f"{name} {city}",
+
+            "gsrnamespace": 6,
+            "gsrlimit": 12,
+            "prop": "imageinfo",
+            "iiprop": "url|mime",
+            "iiurlwidth": 1200,
+            "format": "json",
+            "formatversion": 2,
+        }
+
+        try:
+            response = requests.get(
+                COMMONS_API_URL,
+                params=search_params,
+                headers={
+                    "User-Agent":
+                    "Sidequest-CMU-Project/1.0"
+                },
+                timeout=10,
+            )
+
+            response.raise_for_status()
+
+            pages = (
+                response.json()
+                .get("query", {})
+                .get("pages", [])
+            )
+
+            add_images_from_pages(pages)
+
+        except Exception as exc:
+            print(
+                "COMMONS SEARCH ERROR:",
+                exc,
+                flush=True,
+            )
 
     return jsonify({
-        "images": images
+        "images": images[:3]
     })
-
+    
 @app.get("/photo")
 def photo():
     photo_name = request.args.get(
