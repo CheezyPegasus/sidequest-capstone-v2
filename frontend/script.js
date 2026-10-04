@@ -114,6 +114,44 @@ function placePhotos(place) {
     : [];
 }
 
+async function ensurePlacePhotos(place) {
+  if (!place) return;
+
+  if (
+    place.photo_names &&
+    place.photo_names.length
+  ) {
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      name: place.name || "",
+      city: place.city_label || ""
+    });
+
+    const response = await fetch(
+      `${BACKEND_URL}/place-images?${params.toString()}`
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const data = await response.json();
+
+    place.photo_names = (
+      data.images || []
+    ).slice(0, 3);
+
+  } catch (error) {
+    console.warn(
+      "Could not load place images:",
+      error
+    );
+  }
+}
+
 function firstPhoto(place) {
   return placePhotos(place)[0];
 }
@@ -377,6 +415,17 @@ function renderCard(place) {
 
   renderPhoto(place);
 
+  ensurePlacePhotos(place).then(() => {
+    const activePlace = currentPlace();
+  
+    if (
+      activePlace &&
+      activePlace.id === place.id
+    ) {
+      renderPhoto(place);
+    }
+  });
+  
   attachSwipeGesture(
     document.querySelector("#activeCard")
   );
