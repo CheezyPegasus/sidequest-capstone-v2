@@ -12,10 +12,19 @@ app = Flask(__name__)
 CORS(app)
 
 
-GOOGLE_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
+API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
 
-GOOGLE_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
-GOOGLE_PHOTO_BASE = "https://places.googleapis.com/v1"
+GEOAPIFY_PLACES_URL = "https://api.geoapify.com/v2/places"
+
+GEOAPIFY_CATEGORIES = {
+    "food": "catering.restaurant,catering.fast_food,catering.food_court",
+    "coffee": "catering.cafe",
+    "outdoors": "leisure.park,tourism",
+    "culture": "entertainment.museum,entertainment.culture",
+    "nightlife": "catering.bar,catering.pub,adult.nightclub",
+    "activities": "entertainment",
+    "surprise": "entertainment,catering,leisure.park,tourism",
+}
 
 
 CITY_CONFIG = {
@@ -778,6 +787,27 @@ def demo_places(
 
     return output
 
+def geoapify_primary_type(categories):
+    joined = " ".join(categories or [])
+
+    if "catering.cafe" in joined:
+        return "cafe"
+    if "catering.restaurant" in joined:
+        return "restaurant"
+    if "entertainment.museum" in joined:
+        return "museum"
+    if "entertainment.culture.gallery" in joined:
+        return "art_gallery"
+    if "entertainment.culture.theatre" in joined:
+        return "performing_arts_theater"
+    if "leisure.park" in joined:
+        return "park"
+    if "adult.nightclub" in joined:
+        return "night_club"
+    if "catering.bar" in joined or "catering.pub" in joined:
+        return "bar"
+
+    return "tourist_attraction"
 
 @app.get("/")
 def root():
@@ -791,12 +821,8 @@ def root():
 def health():
     return jsonify({
         "ok": True,
-        "provider": (
-            "google_places_new"
-        ),
-        "google_places_configured": bool(
-            GOOGLE_API_KEY
-        ),
+        "provider": "geoapify",
+        "geoapify_configured": bool(API_KEY),
     })
 
 
@@ -853,7 +879,7 @@ def places():
                 )
             ),
             1,
-            80,
+            200,
         )
 
     except ValueError:
@@ -863,10 +889,7 @@ def places():
                 "values were invalid."
             )
         }), 400
-    candidate_target = min(
-        max(limit * 3, 300),
-        600,
-    )
+    
     # Multi-select budget values:
     # 0 = Free
     # 1 = $
@@ -911,207 +934,235 @@ def places():
             4,
         }
 
-    if not GOOGLE_API_KEY:
-        demo = demo_places(
-            city,
-            max_distance,
-            party,
-        )
-
-        return jsonify({
-            "places": demo,
-            "source": "demo",
-            "warning": (
-                "GOOGLE_PLACES_API_KEY "
-                "is not configured."
-            ),
-        })
-
-    if category == "surprise":
-        terms = list(
-            SURPRISE_TERMS
-        )
-    else:
-        terms = list(
-            SEARCH_TERMS.get(
-                category,
-                SURPRISE_TERMS,
-            )
-        )
-
-    # Shuffle so Surprise Me does not
-    # generate exactly the same search
-    # ordering every single time.
-    random.shuffle(terms)
-
-    field_mask = ",".join([
-        "places.id",
-        "places.displayName",
-        "places.formattedAddress",
-        "places.location",
-        "places.rating",
-        "places.userRatingCount",
-        "places.priceLevel",
-        "places.primaryType",
-        "places.primaryTypeDisplayName",
-        "places.types",
-        "places.photos",
-        "places.accessibilityOptions",
-        "nextPageToken",
-    ])
-
-    # Text Search has a maximum of
-    # 60 results for one text query.
-    # To allow an 80-card Sidequest
-    # pool, search multiple relevant
-    # terms and deduplicate Place IDs.
-    unique_raw_places = {}
-    queries_used = []
-
-    try:
-        for term in terms:
-            if len(
-                unique_raw_places
-            ) >= candidate_target:
-                break
-
-            text_query = (
-                f"{term} in "
-                f"{city['query']}"
-            )
-
-            queries_used.append(
-                text_query
-            )
-
-            base_body = {
-                "textQuery": (
-                    text_query
-                ),
-                "pageSize": 20,
-            }
-
-            # Google's circular Text
-            # Search bias is limited
-            # to about 50 km. For the
-            # larger Sidequest ranges,
-            # omit it and enforce our
-            # own exact distance below.
-            if max_distance <= 31:
-                base_body[
-                    "locationBias"
-                ] = {
-                    "circle": {
-                        "center": {
-                            "latitude": (
-                                city["lat"]
-                            ),
-                            "longitude": (
-                                city["lng"]
-                            ),
-                        },
-                        "radius": (
-                            max_distance
-                            * 1609.344
-                        ),
-                    }
-                }
-
-            page_token = None
-
-            # Up to three pages are
-            # available for a single
-            # Text Search query.
-            for _ in range(3):
-                if len(unique_raw_places) >= candidate_target:
-                    break
-
-                page_body = dict(
-                    base_body
-                )
-
-                if page_token:
-                    page_body[
-                        "pageToken"
-                    ] = page_token
-
-                response = requests.post(
-                    GOOGLE_TEXT_SEARCH_URL,
-                    headers={
-                        "Content-Type": (
-                            "application/json"
-                        ),
-                        "X-Goog-Api-Key": (
-                            GOOGLE_API_KEY
-                        ),
-                        "X-Goog-FieldMask": (
-                            field_mask
-                        ),
-                    },
-                    json=page_body,
-                    timeout=12,
-                )
-
-                if not response.ok:
-                    try:
-                        detail = (
-                            response.json()
-                        )
-                    except ValueError:
-                        detail = (
-                            response.text
-                        )
-
-                    return jsonify({
-                        "error": (
-                            "Google Places "
-                            "returned an error."
-                        ),
-                        "details": detail,
-                    }), response.status_code
-
-                payload = response.json()
-
-                for raw in payload.get(
-                    "places",
-                    [],
-                ):
-                    place_id = raw.get(
-                        "id"
-                    )
-
-                    if not place_id:
-                        continue
-
-                    unique_raw_places[
-                        place_id
-                    ] = raw
-
-                    if len(
-                        unique_raw_places
-                    ) >= candidate_target:
-                        break
-
-                page_token = (
-                    payload.get(
-                        "nextPageToken"
-                    )
-                )
-
-                if not page_token:
-                    break
-
-    except requests.RequestException as exc:
-        return jsonify({
-            "error": (
-                "Could not reach "
-                f"Google Places: {exc}"
-            )
-        }), 502
-
-    raw_places = list(
-        unique_raw_places.values()
+    if not API_KEY:
+    demo = demo_places(
+        city,
+        max_distance,
+        party,
     )
+
+    return jsonify({
+        "places": demo,
+        "source": "demo",
+        "warning": (
+            "Geoapify API key "
+            "is not configured."
+        ),
+    })
+
+
+# Translate Sidequest categories
+# into Geoapify categories.
+geo_categories = {
+    "food": (
+        "catering.restaurant,"
+        "catering.fast_food,"
+        "catering.food_court"
+    ),
+
+    "coffee": (
+        "commercial.cafe"
+    ),
+
+    "outdoors": (
+        "leisure.park,"
+        "tourism"
+    ),
+
+    "culture": (
+        "entertainment.culture,"
+        "tourism"
+    ),
+
+    "nightlife": (
+        "catering.bar,"
+        "catering.pub,"
+        "entertainment"
+    ),
+
+    "activities": (
+        "entertainment"
+    ),
+
+    "surprise": (
+        "catering.restaurant,"
+        "catering.fast_food,"
+        "commercial.cafe,"
+        "leisure.park,"
+        "tourism,"
+        "entertainment"
+    ),
+}
+
+categories = geo_categories.get(
+    category,
+    geo_categories["surprise"],
+)
+
+radius_meters = int(
+    max_distance * 1609.344
+)
+
+# Fetch more than the desired final
+# deck size so local filtering has
+# enough candidates to work with.
+fetch_limit = min(
+    max(limit * 2, 200),
+    500,
+)
+
+params = {
+    "categories": categories,
+
+    "filter": (
+        f"circle:"
+        f"{city['lng']},"
+        f"{city['lat']},"
+        f"{radius_meters}"
+    ),
+
+    "bias": (
+        f"proximity:"
+        f"{city['lng']},"
+        f"{city['lat']}"
+    ),
+
+    "limit": fetch_limit,
+    "apiKey": API_KEY,
+}
+
+try:
+    response = requests.get(
+        GEOAPIFY_PLACES_URL,
+        params=params,
+        timeout=20,
+    )
+
+except requests.RequestException as exc:
+    return jsonify({
+        "error": (
+            "Could not reach "
+            f"Geoapify: {exc}"
+        )
+    }), 502
+
+
+if not response.ok:
+    try:
+        detail = response.json()
+
+    except ValueError:
+        detail = response.text
+
+    return jsonify({
+        "error": (
+            "Geoapify returned "
+            "an error."
+        ),
+        "details": detail,
+    }), response.status_code
+
+
+features = response.json().get(
+    "features",
+    [],
+)
+
+raw_places = []
+
+
+for feature in features:
+    props = feature.get(
+        "properties",
+        {},
+    )
+
+    categories_for_place = props.get(
+        "categories",
+        [],
+    )
+
+    name = (
+        props.get("name")
+        or props.get("address_line1")
+        or "Unnamed Sidequest"
+    )
+
+    primary_type = (
+        geoapify_primary_type(
+            categories_for_place
+        )
+    )
+
+    lat = props.get("lat")
+    lng = props.get("lon")
+
+    # Some Geoapify responses also
+    # carry coordinates in geometry.
+    if lat is None or lng is None:
+        geometry = feature.get(
+            "geometry",
+            {},
+        )
+
+        coordinates = geometry.get(
+            "coordinates",
+            [],
+        )
+
+        if len(coordinates) >= 2:
+            lng = coordinates[0]
+            lat = coordinates[1]
+
+    if lat is None or lng is None:
+        continue
+
+    raw_places.append({
+        "id": (
+            props.get("place_id")
+            or props.get("osm_id")
+            or f"{name}-{lat}-{lng}"
+        ),
+
+        "displayName": {
+            "text": name,
+        },
+
+        "formattedAddress": (
+            props.get("formatted")
+            or props.get("address_line2")
+            or ""
+        ),
+
+        "location": {
+            "latitude": lat,
+            "longitude": lng,
+        },
+
+        # Geoapify does not provide
+        # Google-style ratings/prices.
+        "rating": None,
+        "userRatingCount": 0,
+        "priceLevel": None,
+
+        "primaryType": primary_type,
+
+        "primaryTypeDisplayName": {
+            "text": (
+                primary_type
+                .replace("_", " ")
+                .title()
+            )
+        },
+
+        "types": categories_for_place,
+
+        # We'll handle real images
+        # separately after the deck works.
+        "photos": [],
+
+        "accessibilityOptions": {},
+    })
 
     normalized = []
 
