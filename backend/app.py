@@ -864,8 +864,8 @@ def places():
             )
         }), 400
     candidate_target = min(
-        max(limit * 4, 120),
-        240,
+        max(limit * 3, 300),
+        600,
     )
     # Multi-select budget values:
     # 0 = Free
