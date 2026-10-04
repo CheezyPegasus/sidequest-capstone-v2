@@ -2,146 +2,232 @@
 
 ## AI Tools Used
 
-I primarily used ChatGPT during this project for brainstorming, planning the frontend/backend architecture, generating starter code, debugging Flask/Render/GitHub Pages/CORS/API problems, modifying filters and backend behavior, reviewing implementation choices, and organizing documentation.
+I primarily used ChatGPT during this project for brainstorming, planning the frontend/backend architecture, generating and modifying starter code, debugging Flask/Render/GitHub Pages/CORS/API problems, reviewing implementation choices, and organizing documentation.
 
-I used GitHub's web interface and local terminal tools to actually edit, commit, deploy, and test the project.
+I used GitHub's web interface and local terminal tools to edit, commit, deploy, and test the project. I also relied on browser error messages, Render deployment logs, direct endpoint tests, and the deployed application itself to verify whether AI suggestions actually worked.
 
-Google Places was the external data source, Render hosted the Flask backend, and GitHub Pages hosted the frontend.
+The final deployed project uses:
+- GitHub Pages for the frontend
+- Render for the Flask backend
+- Geoapify Places API for live place discovery
+- Wikimedia Commons / MediaWiki API for place preview images
+- browser localStorage for saved, completed, and history state
 
 ## Which Tool I Used for Which Job
 
-I used ChatGPT most heavily for coding and debugging because it was useful for quickly generating possible fixes and explaining where a problem might be.
+I used ChatGPT most heavily for:
+- brainstorming the Sidequest product concept
+- planning the frontend/backend boundary
+- generating starter HTML/CSS/JavaScript/Python code
+- debugging deployment, CORS, API, and data-shape problems
+- suggesting concrete patches after I supplied error messages
+- reviewing which changes were most important before the deadline
+- helping organize the README and prompt log
 
-I used browser developer tools, curl, terminal output, GitHub Actions logs, and Render deployment logs to verify whether those suggestions actually worked.
+I used browser developer tools, direct endpoint tests, terminal output, GitHub, and Render logs to verify the actual behavior of the system. This was especially important during deployment and API debugging because several AI suggestions were plausible but wrong for the real API.
 
-For deployment problems, I relied more heavily on actual logs than on AI explanations because errors involving ports, CORS, hosting configuration, and API responses needed to be checked against the running application.
-
-For product decisions, I used AI mostly as a brainstorming partner. I personally chose the Sidequest concept, cities, 125-mile range, 80-place result target, filters, swipe behavior, and the Free/$/$$/$$$/$$$$ multi-select price interface.
+For product decisions, I used AI as a brainstorming/debugging partner rather than allowing it to define the project. I personally chose the Sidequest concept, supported cities, the 125-mile range, the swipe-style interaction, the Free/$/$$/$$$/$$$$ multi-select price control, the result target, the decision to keep localStorage instead of adding accounts, and the final decision to prioritize a working MVP over additional large features.
 
 ## Development Process
 
 ### 1. Starting from the Sidequest concept
 
-Sidequest began as an earlier project based around recommending things to do.
+Sidequest began as an earlier project for recommending things to do.
 
-For Project 2, I wanted to make the idea substantially more interactive rather than only making a slightly improved randomizer.
-
-The new concept became essentially "Tinder/Hinge for things to do."
+For Project 2, I wanted a substantial change rather than a small extension of the earlier randomizer. The concept became essentially "Tinder/Hinge for things to do": the user chooses filters, receives a deck of possible places, swipes through them, saves interesting choices, and can later mark them complete.
 
 ### 2. Frontend and backend architecture
 
-The project was split into a plain HTML/CSS/JavaScript frontend and a Flask backend.
+I split the application into:
+- a plain HTML/CSS/JavaScript frontend
+- a Flask backend
 
-The frontend was deployed to GitHub Pages.
+The frontend is deployed to GitHub Pages.
 
-The Flask backend was deployed to Render.
+The Flask backend is deployed to Render.
 
-The backend was responsible for third-party API communication so the Google API key would not be exposed in frontend JavaScript.
+The frontend sends filter choices to the backend through HTTP requests. The backend handles third-party API communication and converts external place data into the structure expected by the Sidequest cards.
+
+This separation also keeps API credentials off the public frontend.
 
 ### 3. Deployment debugging
 
-One of the more time-consuming parts of the project was making the deployed frontend and backend actually communicate correctly.
+A large part of the project was making the deployed frontend and backend communicate correctly.
 
 Port 8000 conflicted with another local tool.
 
-Port 5000 on my Mac was being used by an AirTunes/AirPlay-related service, so I moved the Flask development server to port 5055.
+Port 5000 on my Mac was being used by an AirTunes/AirPlay-related service, so I moved the local Flask development server to port 5055.
 
-I also had to configure CORS correctly so the GitHub Pages origin could call the Render backend.
+I configured CORS so the GitHub Pages frontend could call the Render backend.
 
-At one point the frontend configuration URL was malformed, which caused the deployed frontend to report that the backend was offline even though the backend `/health` route worked.
+At one point the frontend configuration URL was malformed, so the frontend reported that the backend was offline even though the backend `/health` route worked.
 
-I fixed the frontend configuration, redeployed GitHub Pages, redeployed Render, and verified the connection.
+I fixed the frontend configuration, redeployed GitHub Pages and Render, and verified the public connection.
 
-### 4. Google Places integration
+### 4. Initial Google Places implementation
 
-The backend was changed to use Google Places for real location data, ratings, addresses, coordinates, categories, price levels, photos, and accessibility information.
+The earlier backend implementation used Google Places.
 
-The API key is stored only on the backend through an environment variable.
+The goal was to retrieve real locations, addresses, coordinates, ratings, place types, photos, and accessibility information.
+
+The API key was kept on the backend as an environment variable rather than committed to GitHub.
+
+However, I was not able to continue using a Google Places key for the final deployment, so this became a major late-stage architectural change.
 
 ### 5. Expanding the result pool
 
-The first working version only showed three demo Sidequests.
+The first working deployment only returned three demo Sidequests.
 
-Once the deployment pipeline was working, I expanded the backend so the application could retrieve a much larger result pool.
+I expanded the backend so the app could work with a much larger live result pool.
 
-The target was eventually changed to a maximum of 80 places.
+During development the target changed several times, including 50-60, 80, 100, and finally a maximum of 200 Sidequests.
 
-The backend now performs multiple relevant searches, collects results, removes duplicate Place IDs, normalizes the data, applies Sidequest filters, and ranks the remaining results.
+The final Geoapify version can return a large set of real POIs and the backend normalizes those results into the format expected by the frontend.
+
+The deployed app successfully reached 200 Sidequests in a broad Pittsburgh search.
 
 ### 6. Distance changes
 
-The initial maximum distance was too small for the type of app I wanted.
+The original maximum distance was too small for the type of app I wanted.
 
-I changed the maximum distance to 125 miles and changed the backend so the actual Haversine distance calculation enforces the selected distance.
+I changed the maximum distance to 125 miles.
+
+The backend calculates actual Haversine distance from the selected city center and uses the result in Sidequest filtering/scoring.
 
 ### 7. Budget filter redesign
 
 The earlier budget filter behaved like a simple maximum.
 
-I changed the interface to a multi-select dropdown with:
+I changed it to a multi-select dropdown with:
 - Free
 - $
 - $$
 - $$$
 - $$$$
 
-This required changes to the HTML, CSS, frontend JavaScript, query parameters, and backend filtering.
+This required changes across the HTML, CSS, frontend JavaScript, query parameters, and backend filtering logic.
 
 ### 8. Persistence
 
 For the MVP, I deliberately did not add accounts or a database.
 
-Saved, completed, and history information are stored using localStorage.
+Saved, completed, and history information are stored in browser localStorage.
 
-### 9. Current MVP
+This kept the scope manageable while still giving the app persistent interactive state.
 
-The deployed MVP has:
-- public frontend
-- public backend
+### 9. Switching the live place provider to Geoapify
+
+Late in development, the live Google Places path was blocked by the lack of a usable Google Places key.
+
+I obtained a Geoapify key and switched the backend provider.
+
+This required replacing Google-specific Text Search requests with Geoapify's Places endpoint and translating Sidequest categories into Geoapify categories.
+
+I intentionally kept the frontend response shape largely unchanged so I would not need to rebuild the UI.
+
+Important debugging steps during this migration included:
+- removing leftover Google-only request logic
+- changing the provider reported by `/health`
+- fixing duplicate category dictionaries
+- removing stale variables such as `queries_used`
+- replacing references to a deleted local `geo_categories` variable with the top-level `GEOAPIFY_CATEGORIES`
+- using real API error text instead of guessing why requests failed
+
+The migration was successful and the final deployed backend returned 200 Sidequests.
+
+### 10. Fixing API/category mistakes
+
+One Geoapify request failed with:
+
+`Invalid parameters. Category "commercial.cafe" is not supported.`
+
+The error came from a stale duplicate category dictionary in `/places`.
+
+I removed that duplicate block and used the single top-level `GEOAPIFY_CATEGORIES` dictionary.
+
+A later backend crash returned HTML instead of JSON, which caused the frontend error:
+
+`Unexpected token '<', "<!doctype "... is not valid JSON`
+
+To diagnose that, I temporarily added an exception handler that returned the Python exception as JSON. This exposed:
+
+`NameError: name 'geo_categories' is not defined`
+
+I then replaced the stale reference with `GEOAPIFY_CATEGORIES`.
+
+After redeployment, the app successfully loaded the full live deck.
+
+### 11. Adding preview images
+
+Geoapify solved the live place-discovery problem, but it did not provide the same Google Places photo resources that the frontend had originally expected.
+
+Instead of making `/places` load images for all 200 cards at once, I added a separate lazy image path.
+
+The backend now exposes a place-image endpoint using Wikimedia Commons / MediaWiki.
+
+The frontend requests images only for the currently displayed Sidequest.
+
+The first image approach searched Commons by place name, but it often returned no results.
+
+I then changed the image lookup to use the Sidequest's latitude/longitude with Wikimedia geographic search first, followed by a place-name search as a fallback.
+
+The frontend attaches up to 2-3 returned image URLs to the current card and re-renders the existing photo preview area.
+
+This worked in the deployed application and avoided making hundreds of image requests during the initial 200-place deck load.
+
+### 12. Current MVP
+
+The deployed MVP currently has:
+- public GitHub Pages frontend
+- public Render Flask backend
 - frontend/backend communication
-- Google Places integration
-- secret API-key handling
+- Geoapify live place discovery
+- up to 200 Sidequests in a broad search
 - city/category/time/distance/budget/party-size filters
 - distance filtering up to 125 miles
-- multi-select price filtering
-- place cards with multiple photos
-- swipe controls
+- multi-select price controls
+- swipe-style discovery
 - saved places
 - completed places
 - history
-- custom metrics
-- quest objectives
 - localStorage persistence
+- Sidequest-specific metrics and quest objectives
+- lazy-loaded 2-3 image previews through Wikimedia Commons
+- error handling for backend/API failures
 
 ## Meaningful Changes I Made Myself
 
-Examples include:
-- changing the desired maximum distance to 125 miles
-- changing the maximum result pool from 100 to 80
-- choosing the exact budget categories and changing the interaction to a multi-select dropdown
-- choosing Google Places as the data source
-- deciding which cities the interface should support
-- editing and committing files directly through GitHub
+Examples of product and implementation decisions I made or substantially changed include:
+- changing the project from a randomizer into a swipe-style discovery app
+- choosing the supported cities
+- changing the maximum trip distance to 125 miles
+- increasing the result target until the final 200-place goal
+- choosing the Free/$/$$/$$$/$$$$ budget categories
+- redesigning the budget interaction as a multi-select dropdown
+- deciding to keep saved/completed/history state in localStorage
 - configuring and redeploying the Render backend
 - configuring GitHub Pages deployment
-- testing `/health` and `/places`
+- testing `/health`, `/places`, and the image endpoint
 - verifying frontend/backend connectivity
-- keeping localStorage instead of adding accounts or a database
-- prioritizing a working MVP over adding more large features before the deadline
+- switching the live provider from Google Places to Geoapify when Google was no longer practical
+- choosing to preserve the frontend data shape during that migration
+- using real request/response errors to find broken variables and duplicate category definitions
+- adding lazy image loading instead of fetching images for all 200 results at startup
+- prioritizing a stable MVP over adding accounts, a database, or an ML recommendation model before the deadline
 
 ## One Place AI Got It Wrong
 
-One useful example happened while implementing the new price filter.
+There were several useful examples.
 
-AI originally suggested passing all five price categories, including `PRICE_LEVEL_FREE`, directly through the Google Places `priceLevels` request field.
+One early suggestion tried to use Google Places price categories in a way that did not match the actual API behavior. I had to change the implementation and perform price handling locally instead.
 
-That suggestion was wrong for the API behavior I needed.
+A more important late-stage example happened during the Geoapify migration. AI suggested `commercial.cafe` as a valid Geoapify category. The deployed API explicitly rejected it with a 400 error: `Category "commercial.cafe" is not supported.` I used the actual API error to correct the implementation and remove a stale duplicate category dictionary.
 
-The implementation was corrected so Sidequest retrieves places and applies the selected price categories locally instead.
+AI also initially assumed that changing the API key was enough to move from Google Places to Geoapify. In reality, the API key and the API provider are not interchangeable: the backend still had Google-specific URLs, request fields, pagination logic, and variables. I had to replace the provider-specific code and then remove leftover Google-era variables one by one.
 
-A related issue happened when increasing the result target. An early approach treated pagination as if one search could simply provide enough results for an 80-place pool. The final implementation instead combines multiple relevant searches and deduplicates the resulting Google Place IDs.
+Another example was the first Wikimedia image approach. Searching only by exact place name often returned no images. The working version instead uses geographic image search based on each Sidequest's coordinates and then falls back to name search.
 
-These were good examples of why I still needed to understand, test, and modify AI-generated code rather than assuming a confident answer was correct.
+These were good reminders that AI-generated code still needed to be tested against real APIs and real deployed behavior.
 
 # Important Prompts
 
@@ -186,6 +272,65 @@ Below are important prompts copied verbatim from my development conversation.
 ## Prompt 13
 > can you pack a README and a Prompt log for me right now, and I can push them onto Git?
 
+## Prompt 14
+> done, now go check in case I screwed up anything
+
+## Prompt 15
+> 0 sidequests loaded. Demo mode is active — add GOOGLE_PLACES_API_KEY for live results.
+> I think this might be the issue, nothing is really happening here
+
+## Prompt 16
+> I can't get a free GOOGLE_PLACES_API_KEY, can I use an nvidia free key instead?
+
+## Prompt 17
+> Could not reach the Sidequest backend.
+>
+> Could not load Sidequests.
+> Google Places returned an error.
+>
+> Check the deployed backend or try again.
+
+## Prompt 18
+> where is the places I need to modify?
+
+## Prompt 19
+> bro, this need to be fixed before 3:30PM, else I will be cooked by 15-150 (not 113)
+
+## Prompt 20
+> Could not load Sidequests.
+> Geoapify HTTP 400: {'statusCode': 400, 'error': 'Bad Request', 'message': 'Invalid parameters. Category "commercial.cafe" is not supported.'}
+>
+> Check the deployed backend or try again.
+> still, after the fresh deploy
+
+## Prompt 21
+> Could not load Sidequests.
+> Unexpected token '<', "<!doctype "... is not valid JSON
+>
+> Check the deployed backend or try again.
+> even after
+
+## Prompt 22
+> **Could not load Sidequests.**
+> NameError: name 'geo_categories' is not defined
+> Check the deployed backend or try again.
+
+## Prompt 23
+> YES, it worked
+> the next step and final step is to literally add images, 200 sidequests found, holy shit
+> time to go to the TA work session/OH
+
+## Prompt 24
+> now I need to fix the image issue, pull 2-3 images per sidequest in the top as preview
+
+## Prompt 25
+> bad news: no photos yet
+
+## Prompt 26
+> YES, now it works omg
+> what is left for me?
+> also make an updated prompt_log.md and let me push it to Git via Desktop
+
 # Testing and Debugging Notes
 
 Testing was done both locally and against deployed services.
@@ -193,29 +338,35 @@ Testing was done both locally and against deployed services.
 Examples included:
 - testing Flask `/health`
 - testing `/places`
-- checking whether the Google Places key was detected
+- testing the image endpoint
+- checking whether the backend API key was detected
 - testing GitHub Pages
 - checking Render deployment logs
 - testing frontend/backend CORS
 - testing card loading
 - checking whether saved/completed state persisted
 - changing local ports when existing services caused conflicts
+- reading exact third-party API error responses
+- changing the backend error path so a Python exception was returned as JSON instead of an HTML 500 page
 - verifying that deployment changes actually reached the public versions
+- verifying a broad Pittsburgh search could load 200 Sidequests
+- verifying that 2-3 preview images could appear on a live Sidequest card
 
-The most important lesson from this part of the project was that deployment problems often required looking at actual request/response behavior rather than only changing code.
+One of the most important lessons from the project was that deployment and third-party API problems required inspecting actual request/response behavior rather than continuing to modify code from guesses.
 
-# Remaining Work
+# Remaining Work at Final Polish Stage
 
-At the time this prompt log was drafted, the MVP was functioning.
+At the time of this update, the core application was functioning.
 
-Remaining work was mostly:
-- testing edge cases
-- testing mobile/small-screen layout
-- improving loading/error states
-- polishing UI details
-- finishing documentation
-- linking the project from the portfolio
-- recording the demo video
-- submitting the required Google form
+Remaining work was primarily submission/polish:
+- perform one final end-to-end test of the deployed app
+- test a few categories/cities and a small-screen layout
+- update the README so it reflects Geoapify, Wikimedia Commons, and the 200-place result target instead of the earlier Google/80-place implementation
+- make sure no API key is committed to the repository
+- link Sidequest from the deployed portfolio Projects section
+- record the required short demo video using the deployed app
+- explain the frontend/backend architecture and the changes I personally made
+- test the video link in an incognito/private window
+- submit the deployed URL, repository URL, and video link through the required Google form
 
-I deliberately chose not to add a database, account system, or recommendation ML model before finishing the required project because those features were not necessary for the core Sidequest experience.
+I deliberately chose not to add accounts, a database, social features, or an ML recommendation model before submission because those features were not necessary for the core Sidequest experience.
