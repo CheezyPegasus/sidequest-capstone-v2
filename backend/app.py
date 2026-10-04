@@ -863,7 +863,10 @@ def places():
                 "values were invalid."
             )
         }), 400
-
+    candidate_target = min(
+        max(limit * 4, 120),
+        240,
+    )
     # Multi-select budget values:
     # 0 = Free
     # 1 = $
