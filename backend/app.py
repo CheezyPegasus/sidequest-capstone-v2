@@ -1243,17 +1243,8 @@ def places():
     )
 
     return jsonify({
-        "places": (
-            normalized[:limit]
-        ),
-        "source": (
-            "google_places"
-        ),
-        "query": (
-            " | ".join(
-                queries_used
-            )
-        ),
+        "places": normalized[:limit],
+        "source": "geoapify",
     })
 
 
