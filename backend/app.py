@@ -984,9 +984,9 @@ def places():
         GEOAPIFY_CATEGORIES["surprise"],
     )
     
-    categories = geo_categories.get(
+    categories = GEOAPIFY_CATEGORIES.get(
         category,
-        geo_categories["surprise"],
+        GEOAPIFY_CATEGORIES["surprise"],
     )
     
     radius_meters = int(
