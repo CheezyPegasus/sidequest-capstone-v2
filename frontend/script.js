@@ -127,7 +127,9 @@ async function ensurePlacePhotos(place) {
   try {
     const params = new URLSearchParams({
       name: place.name || "",
-      city: place.city_label || ""
+      city: place.city_label || "",
+      lat: String(place.lat ?? ""),
+      lng: String(place.lng ?? "")
     });
 
     const response = await fetch(
