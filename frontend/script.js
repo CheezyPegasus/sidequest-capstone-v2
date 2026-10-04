@@ -111,7 +111,7 @@ function photoURL(photoName) {
 function placePhotos(place) {
   return (place.photo_names && place.photo_names.length)
     ? place.photo_names.slice(0, 8)
-    : (place.demo_photo_urls || []).slice(0, 8);
+    : [];
 }
 
 function firstPhoto(place) {
