@@ -17,15 +17,43 @@ API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
 GEOAPIFY_PLACES_URL = "https://api.geoapify.com/v2/places"
 
 GEOAPIFY_CATEGORIES = {
-    "food": "catering.restaurant,catering.fast_food,catering.food_court",
-    "coffee": "catering.cafe",
-    "outdoors": "leisure.park,tourism",
-    "culture": "entertainment.museum,entertainment.culture",
-    "nightlife": "catering.bar,catering.pub,adult.nightclub",
-    "activities": "entertainment",
-    "surprise": "entertainment,catering,leisure.park,tourism",
-}
+    "food": (
+        "catering.restaurant,"
+        "catering.fast_food,"
+        "catering.food_court"
+    ),
 
+    "coffee": (
+        "commercial.cafe"
+    ),
+
+    "outdoors": (
+        "leisure.park,"
+        "tourism"
+    ),
+
+    "culture": (
+        "entertainment.museum,"
+        "entertainment.culture"
+    ),
+
+    "nightlife": (
+        "catering.bar,"
+        "catering.pub,"
+        "adult.nightclub"
+    ),
+
+    "activities": (
+        "entertainment"
+    ),
+
+    "surprise": (
+        "entertainment,"
+        "catering,"
+        "leisure.park,"
+        "tourism"
+    ),
+}
 
 CITY_CONFIG = {
     "pittsburgh": {
@@ -1050,16 +1078,22 @@ def places():
     if not response.ok:
         try:
             detail = response.json()
-    
         except ValueError:
             detail = response.text
     
+        print(
+            "GEOAPIFY ERROR:",
+            response.status_code,
+            detail,
+            flush=True,
+        )
+    
         return jsonify({
             "error": (
-                "Geoapify returned "
-                "an error."
-            ),
-            "details": detail,
+                f"Geoapify HTTP "
+                f"{response.status_code}: "
+                f"{detail}"
+            )
         }), response.status_code
     
     
