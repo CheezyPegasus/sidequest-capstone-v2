@@ -24,7 +24,7 @@ GEOAPIFY_CATEGORIES = {
     ),
 
     "coffee": (
-        "commercial.cafe"
+        "catering.cafe"
     ),
 
     "outdoors": (
