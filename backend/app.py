@@ -14,6 +14,7 @@ CORS(app)
 
 API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
 
+COMMONS_API_URL = "https://commons.wikimedia.org/w/api.php"
 GEOAPIFY_PLACES_URL = "https://api.geoapify.com/v2/places"
 
 GEOAPIFY_CATEGORIES = {
@@ -1247,6 +1248,95 @@ def places():
         "source": "geoapify",
     })
 
+@app.get("/place-images")
+def place_images():
+    name = request.args.get("name", "").strip()
+    city = request.args.get("city", "").strip()
+
+    if not name:
+        return jsonify({
+            "images": []
+        })
+
+    search_text = f'"{name}" {city}'.strip()
+
+    params = {
+        "action": "query",
+        "generator": "search",
+        "gsrsearch": search_text,
+        "gsrnamespace": 6,
+        "gsrlimit": 6,
+        "prop": "imageinfo",
+        "iiprop": "url|mime",
+        "iiurlwidth": 1200,
+        "format": "json",
+        "formatversion": 2,
+    }
+
+    try:
+        response = requests.get(
+            COMMONS_API_URL,
+            params=params,
+            headers={
+                "User-Agent": "Sidequest-CMU-Project/1.0"
+            },
+            timeout=10,
+        )
+
+        response.raise_for_status()
+        data = response.json()
+
+    except Exception as exc:
+        print(
+            "COMMONS IMAGE ERROR:",
+            exc,
+            flush=True,
+        )
+
+        return jsonify({
+            "images": []
+        })
+
+    images = []
+
+    pages = (
+        data.get("query", {})
+        .get("pages", [])
+    )
+
+    for page in pages:
+        info_list = page.get(
+            "imageinfo",
+            [],
+        )
+
+        if not info_list:
+            continue
+
+        info = info_list[0]
+
+        mime = info.get(
+            "mime",
+            "",
+        )
+
+        if not mime.startswith("image/"):
+            continue
+
+        url = (
+            info.get("thumburl")
+            or info.get("url")
+        )
+
+        if url and url not in images:
+            images.append(url)
+
+        if len(images) >= 3:
+            break
+
+    return jsonify({
+        "images": images
+    })
 
 @app.get("/photo")
 def photo():
