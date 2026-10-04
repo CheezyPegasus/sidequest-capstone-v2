@@ -972,7 +972,7 @@ def places():
         for term in terms:
             if len(
                 unique_raw_places
-            ) >= limit:
+            ) >= candidate_target:
                 break
 
             text_query = (
@@ -1023,9 +1023,7 @@ def places():
             # available for a single
             # Text Search query.
             for _ in range(3):
-                if len(
-                    unique_raw_places
-                ) >= limit:
+                if len(unique_raw_places) >= candidate_target:
                     break
 
                 page_body = dict(
@@ -1091,7 +1089,7 @@ def places():
 
                     if len(
                         unique_raw_places
-                    ) >= limit:
+                    ) >= candidate_target:
                         break
 
                 page_token = (
