@@ -979,48 +979,10 @@ def places():
         })
     
     
-    # Translate Sidequest categories
-    # into Geoapify categories.
-    geo_categories = {
-        "food": (
-            "catering.restaurant,"
-            "catering.fast_food,"
-            "catering.food_court"
-        ),
-    
-        "coffee": (
-            "commercial.cafe"
-        ),
-    
-        "outdoors": (
-            "leisure.park,"
-            "tourism"
-        ),
-    
-        "culture": (
-            "entertainment.culture,"
-            "tourism"
-        ),
-    
-        "nightlife": (
-            "catering.bar,"
-            "catering.pub,"
-            "entertainment"
-        ),
-    
-        "activities": (
-            "entertainment"
-        ),
-    
-        "surprise": (
-            "catering.restaurant,"
-            "catering.fast_food,"
-            "commercial.cafe,"
-            "leisure.park,"
-            "tourism,"
-            "entertainment"
-        ),
-    }
+    categories = GEOAPIFY_CATEGORIES.get(
+        category,
+        GEOAPIFY_CATEGORIES["surprise"],
+    )
     
     categories = geo_categories.get(
         category,
